@@ -45,6 +45,7 @@ import art.rodriguezrodriguez.hermesos.feature.plugins.PluginStoreScreen
 import art.rodriguezrodriguez.hermesos.feature.teams.TeamsAndProfilesScreen
 import art.rodriguezrodriguez.hermesos.ui.diagnostics.ContractDiagnosticsScreen
 import art.rodriguezrodriguez.hermesos.ui.diagnostics.SettingsScreen
+import art.rodriguezrodriguez.hermesos.ui.chat.ChatScreen
 import art.rodriguezrodriguez.hermesos.ui.theme.*
 import java.util.Locale
 
@@ -372,7 +373,7 @@ private fun HermesTopOsBar(
                 Surface(
                     shape = RoundedCornerShape(50),
                     color = HermesSurfaceElevated,
-                    border = BorderStroke(1.dp, dotColor.copy(alpha = 0.6f)),
+                    border = BorderStroke(1.dp, dotColor.copy(alpha = 0.8f)),
                     modifier = Modifier.clickable { onClickConnection() }
                 ) {
                     Row(
@@ -404,7 +405,7 @@ private fun HermesTopOsBar(
                 if (activeModel.isNotBlank()) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = HermesViolet.copy(alpha = 0.3f),
+                        color = HermesViolet.copy(alpha = 0.4f),
                         modifier = Modifier.clickable { onClickModel() }
                     ) {
                         Text(
@@ -420,7 +421,7 @@ private fun HermesTopOsBar(
                 if (pendingApprovalsCount > 0) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = HermesAmber.copy(alpha = 0.25f)
+                        color = HermesAmber.copy(alpha = 0.45f)
                     ) {
                         Text(
                             text = "⚠ $pendingApprovalsCount",
@@ -449,7 +450,7 @@ private fun HermesTopOsBar(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(HermesRose.copy(alpha = 0.35f))
+                        .background(HermesRose.copy(alpha = 0.45f))
                 ) {
                     Icon(
                         imageVector = Icons.Default.Mic,
@@ -480,10 +481,11 @@ private fun RenderDestinationContent(
         OsDockDestination.MCP -> McpManagerScreen(vm = vm)
         OsDockDestination.PLUGINS -> PluginStoreScreen(vm = vm)
         OsDockDestination.CONNECTION -> ConnectionNodeScreen(vm = vm)
-        OsDockDestination.SETTINGS -> SettingsScreen(vm = vm, client = restClient)
-        OsDockDestination.DIAGNOSTICS -> ContractDiagnosticsScreen(client = restClient)
-    }
-}
+                OsDockDestination.SETTINGS -> SettingsScreen(vm = vm, client = restClient)
+                OsDockDestination.DIAGNOSTICS -> ContractDiagnosticsScreen(client = restClient)
+                OsDockDestination.CHAT -> ChatScreen(vm = vm, scopeId = vm.focusedChatScope.value, onBack = { vm.selectDestination(OsDockDestination.DESKTOP) })
+            }
+        }
 
 private fun iconForDestination(dest: OsDockDestination): ImageVector = when (dest) {
     OsDockDestination.DESKTOP -> Icons.Default.SpaceDashboard
@@ -494,4 +496,9 @@ private fun iconForDestination(dest: OsDockDestination): ImageVector = when (des
     OsDockDestination.CONNECTION -> Icons.Default.Router
     OsDockDestination.SETTINGS -> Icons.Default.Settings
     OsDockDestination.DIAGNOSTICS -> Icons.Default.BugReport
+    OsDockDestination.CHAT -> Icons.Default.Chat
 }
+
+
+
+

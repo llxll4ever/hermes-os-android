@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
 import art.rodriguezrodriguez.hermesos.core.model.*
 import art.rodriguezrodriguez.hermesos.ui.theme.*
 
@@ -517,8 +516,7 @@ fun TeamWarRoomWidgetContent(
             onValueChange = { draft = it },
             placeholder = { Text("Escribe misión para $activeScope…", fontSize = 13.sp) },
             modifier = Modifier
-                .weight(1f)
-                .imePadding(),
+                .weight(1f),
             maxLines = 3
         )
         FilledIconButton(

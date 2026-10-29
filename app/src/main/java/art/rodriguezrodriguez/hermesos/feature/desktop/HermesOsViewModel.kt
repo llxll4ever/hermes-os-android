@@ -17,7 +17,8 @@ enum class OsDockDestination(val label: String) {
     PLUGINS("Tienda"),
     CONNECTION("Nodo"),
     SETTINGS("Ajustes"),
-    DIAGNOSTICS("Diagnóstico")
+    DIAGNOSTICS("Diagnóstico"),
+    CHAT("Chat")
 }
 
 class HermesOsViewModel(
