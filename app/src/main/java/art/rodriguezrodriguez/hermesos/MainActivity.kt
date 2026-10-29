@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -237,7 +238,7 @@ private fun HermesOsShell(
                             color = HermesAmber,
                             modifier = Modifier.weight(1f)
                         )
-                        Icon(Icons.Default.ArrowForward, contentDescription = null, tint = HermesAmber, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = HermesAmber, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -426,7 +427,7 @@ private fun HermesTopOsBar(
                     modifier = Modifier.size(30.dp)
                 ) {
                     Icon(
-                        imageVector = if (ttsAutoRead) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                        imageVector = if (ttsAutoRead) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
                         contentDescription = "Lectura TTS",
                         tint = if (ttsAutoRead) HermesTeal else HermesTextSecondary,
                         modifier = Modifier.size(18.dp)

@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -361,7 +362,7 @@ fun VoiceMicWidgetContent(
                     }
                 }
             ) {
-                Icon(Icons.Default.Send, contentDescription = "Enviar", tint = HermesTeal)
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar", tint = HermesTeal)
             }
         }
     }
@@ -525,7 +526,7 @@ fun TeamWarRoomWidgetContent(
                 }
             }
         ) {
-            Icon(Icons.Default.Send, contentDescription = "Enviar")
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar")
         }
     }
 }

@@ -80,6 +80,9 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Background refresh for home-screen widgets
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
     // Native Android Home-Screen Widgets (Jetpack Glance)
     implementation("androidx.glance:glance-appwidget:1.1.0")
     implementation("androidx.glance:glance-material3:1.1.0")

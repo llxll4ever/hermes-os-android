@@ -6,6 +6,7 @@ import art.rodriguezrodriguez.hermesos.core.network.HermesRestClient
 import art.rodriguezrodriguez.hermesos.core.rpc.HermesRpcClient
 import art.rodriguezrodriguez.hermesos.core.storage.WorkspacePreferencesStore
 import art.rodriguezrodriguez.hermesos.data.repository.HermesOsRepository
+import art.rodriguezrodriguez.hermesos.feature.glance.HermesBotWallSyncWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -38,6 +39,9 @@ class HermesOsApp : Application() {
             prefsStore = prefsStore,
             scope = appScope
         )
+
+        // Refresco periodico del widget "Bot Wall" (idempotente, sobrevive reinicios).
+        runCatching { HermesBotWallSyncWorker.schedule(this) }
     }
 
     companion object {

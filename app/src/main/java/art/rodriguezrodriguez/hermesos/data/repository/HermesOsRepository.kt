@@ -146,39 +146,7 @@ class HermesOsRepository(
         }.getOrNull()
         val wallBotsObj = wallTelemetry?.get("bots") as? JsonObject
 
-        _bots.update { current ->
-            val byProfile = current.associateBy { it.profile }.toMutableMap()
-            for (rp in remoteProfiles) {
-                val prev = byProfile[rp.profile]
-                byProfile[rp.profile] = if (prev != null) {
-                    prev.copy(
-                        displayName = rp.displayName.ifBlank { prev.displayName },
-                        roleSummary = rp.roleSummary.ifBlank { prev.roleSummary },
-                        activeModel = rp.activeModel.ifBlank { prev.activeModel },
-                        activeProvider = rp.activeProvider.ifBlank { prev.activeProvider }
-                    )
-                } else {
-                    rp
-                }
-            }
-            wallBotsObj?.forEach { (prof, el) ->
-                val o = el as? JsonObject ?: return@forEach
-                val prev = byProfile[prof] ?: BotProfileCard(
-                    profile = prof,
-                    handle = if (prof == "default") "hermes" else prof,
-                    displayName = prof.replaceFirstChar { it.uppercase() },
-                    roleSummary = HermesRestClient.defaultRoleForHandle(prof)
-                )
-                val mappedState = runCatching { BotLiveState.valueOf(o.str("state")) }.getOrDefault(prev.liveState)
-                byProfile[prof] = prev.copy(
-                    liveState = mappedState,
-                    currentActivity = o.str("activity").ifBlank { prev.currentActivity },
-                    activeToolName = o.str("tool_name").takeIf { it.isNotBlank() },
-                    activeRoomId = o.str("room_id").takeIf { it.isNotBlank() }
-                )
-            }
-            byProfile.values.sortedBy { it.profile != "default" && it.profile != "orchestrator" }
-        }
+        _bots.update { current -> BotWallMerge.merge(current, remoteProfiles, wallBotsObj) }
         prefsStore.cacheBotWallForHomeWidgets(_bots.value)
     }
 
