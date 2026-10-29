@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow HTTP over encrypted Tailscale CGNAT (100.64.0.0/10), loopback SSH tunnels, and private LAN -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">rodriguezrodriguez.art</domain>
+    </domain-config>
+</network-security-config>

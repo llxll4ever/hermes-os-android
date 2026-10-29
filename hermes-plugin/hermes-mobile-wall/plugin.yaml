@@ -1,0 +1,20 @@
+name: hermes-mobile-wall
+version: 0.1.0
+manifest_version: 1
+api_version: 1
+description: >
+  Non-invasive live telemetry wall for Hermes OS Android. Projects per-profile
+  tool execution, room member activity, and approval states to
+  /api/plugins/hermes-mobile-wall/wall without modifying hermes-agent core.
+author: Hermes OS
+license: MIT
+requires_hermes: ">=0.21"
+tags: [android, desktop, wall, telemetry, rooms]
+provides_hooks:
+  - on_session_start
+  - on_session_end
+  - pre_tool_call
+  - post_tool_call
+  - pre_approval_request
+  - post_approval_response
+  - on_room_member_activity

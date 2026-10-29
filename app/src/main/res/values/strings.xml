@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Hermes OS</string>
+    <string name="widget_mic_title">Hermes Voz &amp; Comando Rápido</string>
+    <string name="widget_mic_desc">Habla con tus bots o lanza una orden rápida al equipo</string>
+    <string name="widget_wall_title">Hermes Muro de Bots en Vivo</string>
+    <string name="widget_wall_desc">Monitorea qué están haciendo tus bots y aprueba herramientas</string>
+    <string name="tile_voice_label">Hermes Voz</string>
+    <string name="voice_channel_name">Hermes Voz en Vivo</string>
+</resources>
