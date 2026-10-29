@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import art.rodriguezrodriguez.hermesos.core.model.AuthorKind
 import art.rodriguezrodriguez.hermesos.core.model.LinkStatus
+import art.rodriguezrodriguez.hermesos.core.network.HermesRestClient
 import art.rodriguezrodriguez.hermesos.feature.connection.ConnectionNodeScreen
 import art.rodriguezrodriguez.hermesos.feature.desktop.DesktopCanvasScreen
 import art.rodriguezrodriguez.hermesos.feature.desktop.HermesOsViewModel
@@ -42,6 +43,8 @@ import art.rodriguezrodriguez.hermesos.feature.mcp.McpManagerScreen
 import art.rodriguezrodriguez.hermesos.feature.models.ModelsAndProvidersScreen
 import art.rodriguezrodriguez.hermesos.feature.plugins.PluginStoreScreen
 import art.rodriguezrodriguez.hermesos.feature.teams.TeamsAndProfilesScreen
+import art.rodriguezrodriguez.hermesos.ui.diagnostics.ContractDiagnosticsScreen
+import art.rodriguezrodriguez.hermesos.ui.diagnostics.SettingsScreen
 import art.rodriguezrodriguez.hermesos.ui.theme.*
 import java.util.Locale
 
@@ -50,6 +53,11 @@ class MainActivity : ComponentActivity() {
     private val vm: HermesOsViewModel by viewModels {
         val app = application as HermesOsApp
         HermesOsViewModel.Factory(app.repository)
+    }
+
+    private val restClient: HermesRestClient by lazy {
+        val app = application as HermesOsApp
+        app.repository.restClient
     }
 
     private var tts: TextToSpeech? = null
@@ -97,6 +105,7 @@ class MainActivity : ComponentActivity() {
             HermesOsTheme {
                 HermesOsShell(
                     vm = vm,
+                    restClient = restClient,
                     onTriggerVoiceInput = { requestVoiceCapture() },
                     onSpeakText = { text ->
                         if (ttsReady && text.isNotBlank()) {
@@ -168,6 +177,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun HermesOsShell(
     vm: HermesOsViewModel,
+    restClient: HermesRestClient,
     onTriggerVoiceInput: () -> Unit,
     onSpeakText: (String) -> Unit
 ) {
@@ -291,12 +301,12 @@ private fun HermesOsShell(
                         }
                     }
                     Box(modifier = Modifier.weight(1f)) {
-                        RenderDestinationContent(activeDest, vm, onTriggerVoiceInput)
+                        RenderDestinationContent(activeDest, vm, restClient, onTriggerVoiceInput)
                     }
                 }
             } else {
                 Box(modifier = Modifier.weight(1f)) {
-                    RenderDestinationContent(activeDest, vm, onTriggerVoiceInput)
+                    RenderDestinationContent(activeDest, vm, restClient, onTriggerVoiceInput)
                 }
                 NavigationBar(
                     containerColor = HermesSurfaceCard,
@@ -394,7 +404,7 @@ private fun HermesTopOsBar(
                 if (activeModel.isNotBlank()) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = HermesViolet.copy(alpha = 0.2f),
+                        color = HermesViolet.copy(alpha = 0.3f),
                         modifier = Modifier.clickable { onClickModel() }
                     ) {
                         Text(
@@ -439,7 +449,7 @@ private fun HermesTopOsBar(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(HermesRose.copy(alpha = 0.22f))
+                        .background(HermesRose.copy(alpha = 0.35f))
                 ) {
                     Icon(
                         imageVector = Icons.Default.Mic,
@@ -457,6 +467,7 @@ private fun HermesTopOsBar(
 private fun RenderDestinationContent(
     destination: OsDockDestination,
     vm: HermesOsViewModel,
+    restClient: HermesRestClient,
     onTriggerVoiceInput: () -> Unit
 ) {
     when (destination) {
@@ -469,6 +480,8 @@ private fun RenderDestinationContent(
         OsDockDestination.MCP -> McpManagerScreen(vm = vm)
         OsDockDestination.PLUGINS -> PluginStoreScreen(vm = vm)
         OsDockDestination.CONNECTION -> ConnectionNodeScreen(vm = vm)
+        OsDockDestination.SETTINGS -> SettingsScreen(vm = vm, client = restClient)
+        OsDockDestination.DIAGNOSTICS -> ContractDiagnosticsScreen(client = restClient)
     }
 }
 
@@ -479,4 +492,6 @@ private fun iconForDestination(dest: OsDockDestination): ImageVector = when (des
     OsDockDestination.MCP -> Icons.Default.Cable
     OsDockDestination.PLUGINS -> Icons.Default.Storefront
     OsDockDestination.CONNECTION -> Icons.Default.Router
+    OsDockDestination.SETTINGS -> Icons.Default.Settings
+    OsDockDestination.DIAGNOSTICS -> Icons.Default.BugReport
 }

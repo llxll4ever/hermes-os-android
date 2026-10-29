@@ -47,6 +47,10 @@ fun DesktopCanvasScreen(
 
     var showWidgetCatalogDialog by remember { mutableStateOf(false) }
 
+    // Snackbar host for undo widget removal
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isWideDesktop = maxWidth >= 700.dp // Landscape S24 Ultra, Foldable, or Samsung DeX
 
@@ -112,7 +116,21 @@ fun DesktopCanvasScreen(
                     mcpServers = mcpServers,
                     approvals = approvals,
                     connection = connection,
-                    onRequestSystemVoiceInput = onRequestSystemVoiceInput
+                    onRequestSystemVoiceInput = onRequestSystemVoiceInput,
+                    onRemoveWithUndo = { placementId, title ->
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Widget \"$title\" eliminado",
+                                actionLabel = "Deshacer",
+                                duration = SnackbarDuration.Long
+                            )
+                            if (result == SnackbarResult.Dismissed) {
+                                // User didn't click Undo - proceed with removal
+                                vm.removeDesktopWidget(placementId)
+                            }
+                            // If result == SnackbarResult.ActionPerformed, user clicked Undo - do nothing
+                        }
+                    }
                 )
             } else if (isWideDesktop) {
                 // Multi-Window 2-Column Tiling Mode (Landscape / Samsung DeX)
@@ -144,7 +162,19 @@ fun DesktopCanvasScreen(
                                 mcpServers = mcpServers,
                                 approvals = approvals,
                                 connection = connection,
-                                onRequestSystemVoiceInput = onRequestSystemVoiceInput
+                                onRequestSystemVoiceInput = onRequestSystemVoiceInput,
+                                onRemoveWithUndo = { placementId, title ->
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "Widget \"$title\" eliminado",
+                                            actionLabel = "Deshacer",
+                                            duration = SnackbarDuration.Long
+                                        )
+                                        if (result == SnackbarResult.Dismissed) {
+                                            vm.removeDesktopWidget(placementId)
+                                        }
+                                    }
+                                }
                             )
                         }
                     }
@@ -168,7 +198,19 @@ fun DesktopCanvasScreen(
                                 mcpServers = mcpServers,
                                 approvals = approvals,
                                 connection = connection,
-                                onRequestSystemVoiceInput = onRequestSystemVoiceInput
+                                onRequestSystemVoiceInput = onRequestSystemVoiceInput,
+                                onRemoveWithUndo = { placementId, title ->
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "Widget \"$title\" eliminado",
+                                            actionLabel = "Deshacer",
+                                            duration = SnackbarDuration.Long
+                                        )
+                                        if (result == SnackbarResult.Dismissed) {
+                                            vm.removeDesktopWidget(placementId)
+                                        }
+                                    }
+                                }
                             )
                         }
                     }
@@ -202,7 +244,19 @@ fun DesktopCanvasScreen(
                                     mcpServers = mcpServers,
                                     approvals = approvals,
                                     connection = connection,
-                                    onRequestSystemVoiceInput = onRequestSystemVoiceInput
+                                    onRequestSystemVoiceInput = onRequestSystemVoiceInput,
+                                    onRemoveWithUndo = { placementId, title ->
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "Widget \"$title\" eliminado",
+                                                actionLabel = "Deshacer",
+                                                duration = SnackbarDuration.Long
+                                            )
+                                            if (result == SnackbarResult.Dismissed) {
+                                                vm.removeDesktopWidget(placementId)
+                                            }
+                                        }
+                                    }
                                 )
                             }
                             Box(modifier = Modifier.weight(1f)) {
@@ -221,7 +275,19 @@ fun DesktopCanvasScreen(
                                     mcpServers = mcpServers,
                                     approvals = approvals,
                                     connection = connection,
-                                    onRequestSystemVoiceInput = onRequestSystemVoiceInput
+                                    onRequestSystemVoiceInput = onRequestSystemVoiceInput,
+                                    onRemoveWithUndo = { placementId, title ->
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "Widget \"$title\" eliminado",
+                                                actionLabel = "Deshacer",
+                                                duration = SnackbarDuration.Long
+                                            )
+                                            if (result == SnackbarResult.Dismissed) {
+                                                vm.removeDesktopWidget(placementId)
+                                            }
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -242,7 +308,19 @@ fun DesktopCanvasScreen(
                             mcpServers = mcpServers,
                             approvals = approvals,
                             connection = connection,
-                            onRequestSystemVoiceInput = onRequestSystemVoiceInput
+                            onRequestSystemVoiceInput = onRequestSystemVoiceInput,
+                            onRemoveWithUndo = { placementId, title ->
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "Widget \"$title\" eliminado",
+                                        actionLabel = "Deshacer",
+                                        duration = SnackbarDuration.Long
+                                    )
+                                    if (result == SnackbarResult.Dismissed) {
+                                        vm.removeDesktopWidget(placementId)
+                                    }
+                                }
+                            }
                         )
                         idx += 1
                     }
@@ -251,6 +329,9 @@ fun DesktopCanvasScreen(
             Spacer(Modifier.height(16.dp))
         }
     }
+
+    // SnackbarHost for undo widget removal
+    SnackbarHost(hostState = snackbarHostState)
 
     if (showWidgetCatalogDialog) {
         AlertDialog(
@@ -294,7 +375,8 @@ private fun RenderDesktopWidgetCard(
     mcpServers: List<McpServerEntry>,
     approvals: List<PendingToolApproval>,
     connection: ConnectionSnapshot,
-    onRequestSystemVoiceInput: () -> Unit
+    onRequestSystemVoiceInput: () -> Unit,
+    onRemoveWithUndo: (String, String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val accent = when (placement.type) {
@@ -312,7 +394,7 @@ private fun RenderDesktopWidgetCard(
         onCycleSpan = { vm.cycleWidgetSpan(placement.id) },
         onMoveUp = { vm.moveWidgetOrder(placement.id, -1) },
         onMoveDown = { vm.moveWidgetOrder(placement.id, +1) },
-        onRemove = { vm.removeDesktopWidget(placement.id) }
+        onRemove = { onRemoveWithUndo(placement.id, placement.customTitle) }
     ) {
         when (placement.type) {
             DesktopWidgetType.BOT_WALL -> BotWallWidgetContent(

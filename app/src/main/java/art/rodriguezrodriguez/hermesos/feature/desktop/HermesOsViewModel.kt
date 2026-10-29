@@ -15,7 +15,9 @@ enum class OsDockDestination(val label: String) {
     MODELS("Modelos"),
     MCP("MCPs"),
     PLUGINS("Tienda"),
-    CONNECTION("Nodo")
+    CONNECTION("Nodo"),
+    SETTINGS("Ajustes"),
+    DIAGNOSTICS("Diagnóstico")
 }
 
 class HermesOsViewModel(
@@ -69,7 +71,7 @@ class HermesOsViewModel(
         }
     }
 
-    // ── Desktop Mode Modular Widget Canvas Actions ────────────────────────────
+    // ── Desktop Mode Modular Widget Canvas Actions ────────────────────────
 
     fun applyPreset(preset: WorkspacePreset) {
         viewModelScope.launch {
@@ -140,7 +142,7 @@ class HermesOsViewModel(
         }
     }
 
-    // ── Chat, Voice & Team Dispatch ───────────────────────────────────────────
+    // ── Chat, Voice & Team Dispatch ───────────────────────────────────────
 
     fun sendChat(scopeId: String, text: String) {
         viewModelScope.launch {

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import art.rodriguezrodriguez.hermesos.core.model.*
 import art.rodriguezrodriguez.hermesos.ui.theme.*
 
@@ -30,7 +31,7 @@ import art.rodriguezrodriguez.hermesos.ui.theme.*
  * Window-chrome wrapper giving every widget on the Hermes OS Desktop Canvas:
  * - Drag/Order controls (↑ / ↓)
  * - Size cycle button (S / M / W / MAX)
- * - Close widget button (×)
+ * - Close widget button (×) - parent handles Snackbar with undo
  */
 @Composable
 fun DesktopWidgetWindow(
@@ -333,7 +334,7 @@ fun VoiceMicWidgetContent(
         if (lastTranscript.isNotBlank()) {
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "“$lastTranscript”",
+                text = "\"$lastTranscript\"",
                 fontSize = 12.sp,
                 color = HermesTeal,
                 maxLines = 2,
@@ -515,7 +516,9 @@ fun TeamWarRoomWidgetContent(
             value = draft,
             onValueChange = { draft = it },
             placeholder = { Text("Escribe misión para $activeScope…", fontSize = 13.sp) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .imePadding(),
             maxLines = 3
         )
         FilledIconButton(
