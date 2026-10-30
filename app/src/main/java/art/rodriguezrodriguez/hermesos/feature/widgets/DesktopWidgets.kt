@@ -525,9 +525,13 @@ fun TeamWarRoomWidgetContent(
                     onSendMessage(draft)
                     draft = ""
                 }
-            }
+            },
+            enabled = draft.isNotBlank()
         ) {
-            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar")
+            Icon(
+                Icons.AutoMirrored.Filled.Send,
+                contentDescription = "Enviar misión a $activeScope"
+            )
         }
     }
 }
