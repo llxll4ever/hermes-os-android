@@ -144,18 +144,22 @@ fun BotWallWidgetContent(
 
     Spacer(Modifier.height(8.dp))
 
+    val botPairs = remember(bots) { bots.chunked(2) }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        bots.chunked(2).forEach { pair ->
+        botPairs.forEach { pair ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 pair.forEach { bot ->
-                    BotStatusTile(
-                        bot = bot,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onOpenBotChat(bot) }
-                    )
+                    key(bot.profile) {
+                        BotStatusTile(
+                            bot = bot,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onOpenBotChat(bot) }
+                        )
+                    }
                 }
                 if (pair.size == 1) {
                     Spacer(Modifier.weight(1f))
