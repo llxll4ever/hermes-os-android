@@ -118,7 +118,10 @@ fun ChatScreen(
                     contentPadding = PaddingValues(16.dp, 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(scopeMessages) { msg ->
+                    items(
+                        items = scopeMessages,
+                        key = { it.id }
+                    ) { msg ->
                         ChatMessageBubble(message = msg, bots = bots)
                     }
                     item {

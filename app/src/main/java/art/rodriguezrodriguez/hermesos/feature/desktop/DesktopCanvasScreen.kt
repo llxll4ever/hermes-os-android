@@ -134,9 +134,9 @@ fun DesktopCanvasScreen(
                 )
             } else if (isWideDesktop) {
                 // Multi-Window 2-Column Tiling Mode (Landscape / Samsung DeX)
-                val sorted = widgets.sortedBy { it.order }
-                val leftCol = sorted.filterIndexed { i, _ -> i % 2 == 0 }
-                val rightCol = sorted.filterIndexed { i, _ -> i % 2 == 1 }
+                val sorted = remember(widgets) { widgets.sortedBy { it.order } }
+                val leftCol = remember(sorted) { sorted.filterIndexed { i, _ -> i % 2 == 0 } }
+                val rightCol = remember(sorted) { sorted.filterIndexed { i, _ -> i % 2 == 1 } }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -217,7 +217,7 @@ fun DesktopCanvasScreen(
                 }
             } else {
                 // Portrait Mobile Desktop Mode: SMALL widgets pair side-by-side; STANDARD/WIDE span full width
-                val sorted = widgets.sortedBy { it.order }
+                val sorted = remember(widgets) { widgets.sortedBy { it.order } }
                 var idx = 0
                 while (idx < sorted.size) {
                     val current = sorted[idx]
