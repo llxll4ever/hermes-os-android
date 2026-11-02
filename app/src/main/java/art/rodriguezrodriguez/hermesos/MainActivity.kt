@@ -482,7 +482,10 @@ private fun RenderDestinationContent(
         OsDockDestination.PLUGINS -> PluginStoreScreen(vm = vm)
         OsDockDestination.CONNECTION -> ConnectionNodeScreen(vm = vm)
                 OsDockDestination.SETTINGS -> SettingsScreen(vm = vm, client = restClient)
-                OsDockDestination.DIAGNOSTICS -> ContractDiagnosticsScreen(client = restClient)
+                OsDockDestination.DIAGNOSTICS -> {
+                    val conn by vm.repo.connection.collectAsState()
+                    ContractDiagnosticsScreen(client = restClient, authRequired = conn.authRequired)
+                }
                 OsDockDestination.CHAT -> ChatScreen(vm = vm, scopeId = vm.focusedChatScope.value, onBack = { vm.selectDestination(OsDockDestination.DESKTOP) })
             }
         }

@@ -1,8 +1,10 @@
 # STATE.md — Hermes OS Android Live Progress Ledger
 
-Last Updated: 2026-10-29
+Last Updated: 2026-11-01
 Repository: `https://github.com/llxll4ever/hermes-os-android`
 Local Path on VPS: `/home/opc/Android/HermesOS`
+Kanban Board: `hermes-os-android` (`hermes kanban --board hermes-os-android list`)
+EGM Specification: `docs/designs/v0.2.0-culmination-spec.md` & `docs/designs/v0.2.0-goldfish-review.md`
 
 ## Milestone Status (Backbone v0.1.0 — COMPLETE)
 
@@ -55,18 +57,36 @@ Local Path on VPS: `/home/opc/Android/HermesOS`
   - **SE3** (1-3d): Design System package (`ui/designsystem/`) + `LocalHermesTokens` composition locals.
   - **No tocar:** Core network/RPC/storage, Repository merge logic, Glance widgets, Voice Service, WorkManager sync, AutoMirrored icons (hecho).
 
+## Milestone Status (v0.2.0 Culmination — Elephant-Goldfish Plan & Kanban) 🐘🐠
+
+### Kanban Roadmap (`--board hermes-os-android`)
+- [x] **`t_a0fdcba0` — M1: Alineación de Contratos REST/WS, Loopback Auth y Diagnóstico (Gap #1)**:
+  - Corregidos los 13 contratos wire/auth (`C1`–`C13`) auditados contra `hermes_cli/web_models.py`, `web_routers/*.py`, `inventory.py` y `web_server_config.py`: `PUT /api/config/raw` (`yaml_text`), `GET /api/env` (objetos `is_set`/`redacted_value`) + `PUT /api/env` secuencial por clave, `GET /api/model/options` (`slug` canónico) + `POST /api/model/set` (`scope: "main"`, preservación de agregador vía `/api/model/info`) + `PUT /api/profiles/{name}/model`, `/api/providers/custom-endpoints` (`api_key_preview`, `is_current`, `PUT /{id}` sin sobrescribir `api_key` redactada), `GET /api/mcp/catalog` (`entries`, `auth_type == "oauth"`, `required_env`) + `POST /api/mcp/servers` (`profile` en body + overwrite seguro en HTTP 409 no perteneciente a plugin), `fetchPluginStoreCatalog` (`hub` `runtime_status` prioritario + decodificación segura de `JsonNull` y `JsonObject`/`JsonArray`), codificación RFC 3986 en `CredentialGuards.kt`, autenticación Loopback (`?token=` en `WS /api/ws`, sondeo `/api/profiles` 401 -> `AUTH_REQUIRED` y tarjeta `ConnectionNodeScreen.kt`), y `ContractDiagnosticsScreen.kt` con 16 sondas autenticadas (`probeEndpoint`).
+  - Cubierto por `HermesRestContractTest.kt` (`MockWebServer`, pure Kotlin).
+- [x] **`t_6a704d04` — M2: Editor Dinámico `settingsSchema` de Plugins y Diálogo Consent/Scan (Gap #3)**:
+  - `PluginSettingsCodec.kt` valida y serializa tipos estrictos de Python (`string`, `number` `Long`/`Double`, `boolean`, `enum`, `json` `JsonObject`/`JsonArray`) y aísla campos `secret` hacia `PUT /api/env` con guardia anti-redacción.
+  - Descubrimiento y mutación profile-scoped por `WS /api/ws` (`plugins.manage`: `list`, `settings`, `toggle`, `install`, `update`, `remove`) en `HermesRpcClient.kt` + `HermesOsRepository.kt`, con fallback REST para `default` offline.
+  - `PluginStoreScreen.kt` renderiza `PluginSettingsDialog` (`@OptIn(ExperimentalMaterial3Api::class)`, `Modifier.menuAnchor()` compatible con `compose-bom:2024.06.00`) y `PluginSecurityConsentDialog` (`ConsentRequired` `delta_lines` y `ScanBlocked` `caution` con opción `force` vs `dangerous` bloqueado).
+  - Cubierto por `PluginSettingsAndConsentTest.kt` (pure Kotlin).
+- [ ] **`t_c6898e50` — 🛑 RG-1: Punto de Revisión Humana (`blocked` — PUNTO DE RETOMA ACTUAL)**:
+  - Revisar commits M1 + M2 en `origin/main`, decidir reinicio de `hermes dashboard` (`:9119`) para Gap #2 (`/api/plugins/hermes-mobile-wall/wall`), y aprobar defaults UX/Voz antes de desbloquear `M3`–`M6`.
+- [ ] **`t_b3358614` — M3: Design System Tokens (`HermesTokens`) y Migración de Tema (Gaps #8 & #10)**
+- [ ] **`t_8e1b0dad` — M4: Shell Adaptativo DeX 4 Breakpoints, Nav Overflow, Chat Master-Detail y Drag Reorder (Gaps #9 & #6b)**
+- [ ] **`t_6db449d1` — M5: Motor de Voz Hermes Audio Relay (`WS` PCM + `HTTP` Fallback + System Fallback) (Gap #4)**
+- [ ] **`t_07b0cb2d` — M6: Firma Release por Variables de Entorno, Suite Final y Cierre `v0.2.0` (Gap #7)**
+
 ## Known Gaps / Next Tasks
 
-1. **Validate endpoints against live server** — several REST paths in `HermesRestClient` are best-guess (`/api/providers/custom-endpoints`, `/api/mcp/catalog/install`, `/api/dashboard/agent-plugins/*`, `/api/profiles/{p}/model`). Diff against `hermes_cli/web_routers/*.py` and fix. **Bloqueado**: se necesita acceso al código del backend en `lalo-vps` (`/home/opc/.hermes/hermes-agent`) o una sesión autenticada contra el dashboard. Nota de sondeo: el servidor responde `401` a *cualquier* ruta no autenticada (incluidas inexistentes), por lo que no sirve como oráculo de existencia de rutas; sólo `/api/health`, `/api/auth/providers` y `/api/model/info` son públicos (verificados el 2026-10-29, versión 0.22.5).
-2. **Restart `hermes dashboard`** (user decision) so `hermes-mobile-wall` loads; verify `GET /api/plugins/hermes-mobile-wall/wall`.
-3. Plugin settings editor (render `settingsSchema` fields) and consent-delta dialog.
-4. Streaming voice via `/api/audio/transcribe-stream` + `speak-stream` instead of system RecognizerIntent.
+1. ~~**Validate endpoints against live server**~~ — **Completado en M1 (`t_a0fdcba0`)**: auditadas todas las rutas contra `/home/opc/.hermes/hermes-agent` y corregidos los contratos `C1`–`C13` con pruebas `MockWebServer` (`HermesRestContractTest`).
+2. **Restart `hermes dashboard`** (**Pendiente en `RG-1` `t_c6898e50` — decisión de usuario**) so `hermes-mobile-wall` loads; verify `GET /api/plugins/hermes-mobile-wall/wall`.
+3. ~~**Plugin settings editor (`settingsSchema`) and consent-delta dialog**~~ — **Completado en M2 (`t_6a704d04`)** (`PluginSettingsCodec`, `PluginSettingsDialog`, `PluginSecurityConsentDialog`, `PluginSettingsAndConsentTest`).
+4. **Streaming voice via `/api/audio/transcribe-stream` + `speak-stream`** — Planificado y especificado en **M5 (`t_6db449d1`)**.
 5. ~~Periodic Glance refresh (WorkManager)~~ — hecho en v0.1.1.
-6. Drag-and-drop widget reorder (la parte de iconos AutoMirrored ya está hecha).
-7. Instrumented UI tests; release signing config.
-8. **Design System Implementation** — Ejecutar QW1, QW2, QW3 (tokens, tipografía, espaciado, radios).
-9. **DeX Breakpoints + Master-Detail Chat** — Ejecutar SE1, SE2.
-10. **Design System Package** — Ejecutar SE3.
+6. **Drag-and-drop widget reorder 2D (`packDesktopRows` + `boundsInRoot()`)** — Planificado y especificado en **M4 (`t_8e1b0dad`)** (la parte de iconos AutoMirrored ya está hecha).
+7. **Release signing config env-driven (`HERMES_KEYSTORE_*`) & cierre `v0.2.0`** — Planificado y especificado en **M6 (`t_07b0cb2d`)**.
+8. **Design System Implementation (QW1–QW3)** — Planificado y especificado en **M3 (`t_b3358614`)**.
+9. **DeX Breakpoints + Master-Detail Chat (SE1–SE2)** — Planificado y especificado en **M4 (`t_8e1b0dad`)**.
+10. **Design System Package (`ui/designsystem/`, SE3)** — Planificado y especificado en **M3 (`t_b3358614`)**.
 
 ## Build Notes
 

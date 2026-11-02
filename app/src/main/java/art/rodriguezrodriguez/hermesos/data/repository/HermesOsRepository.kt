@@ -3,8 +3,10 @@ package art.rodriguezrodriguez.hermesos.data.repository
 import art.rodriguezrodriguez.hermesos.core.model.*
 import art.rodriguezrodriguez.hermesos.core.network.HermesRestClient
 import art.rodriguezrodriguez.hermesos.core.network.str
+import art.rodriguezrodriguez.hermesos.core.plugins.PluginSettingsCodec
 import art.rodriguezrodriguez.hermesos.core.rpc.GatewayEventFrame
 import art.rodriguezrodriguez.hermesos.core.rpc.HermesRpcClient
+import art.rodriguezrodriguez.hermesos.core.rpc.ManagedPluginRpcInfo
 import art.rodriguezrodriguez.hermesos.core.rpc.ServerRpcRequest
 import art.rodriguezrodriguez.hermesos.core.storage.WorkspacePreferencesStore
 import kotlinx.coroutines.*
@@ -307,9 +309,15 @@ class HermesOsRepository(
     }
 
     suspend fun createCustomEndpoint(profile: String, name: String, baseUrl: String, apiKey: String, model: String) {
+        if (name.isBlank() || baseUrl.isBlank() || model.isBlank()) {
+            _statusBanner.value = "Ingresa nombre, Base URL y modelo default para registrar el provider"
+            return
+        }
         if (restClient.addCustomEndpoint(profile, name, baseUrl, apiKey, model)) {
             refreshProvidersAndConfig(profile)
             _statusBanner.value = "Provider '$name' conectado"
+        } else {
+            _statusBanner.value = "No se pudo registrar el provider '$name'"
         }
     }
 
@@ -355,12 +363,33 @@ class HermesOsRepository(
     }
 
     suspend fun refreshPluginStore(profile: String = "default") {
-        runCatching { restClient.fetchPluginStoreCatalog(profile) }.onSuccess { _pluginStore.value = it }
+        val restItems = runCatching { restClient.fetchPluginStoreCatalog(profile) }.getOrNull()
+        val rpcItems = if (rpcClient.connected.value) {
+            runCatching { rpcClient.listManagedPlugins(profile) }.getOrNull()
+        } else {
+            null
+        }
+        if (restItems == null && rpcItems == null) return
+        _pluginStore.value = mergePluginCatalogWithRpc(
+            restItems = restItems.orEmpty(),
+            rpcItems = rpcItems.orEmpty()
+        )
     }
 
-    suspend fun installStorePlugin(profile: String, identifier: String, fromCatalog: Boolean) {
-        val resp = restClient.installPlugin(profile, identifier, fromCatalog)
-        val scanArr = resp?.get("scan_findings") as? JsonArray
+    suspend fun installStorePlugin(profile: String, identifier: String, fromCatalog: Boolean, force: Boolean = false) {
+        val resp = when {
+            rpcClient.connected.value -> rpcClient.installManagedPlugin(profile, identifier, fromCatalog, force)
+            isDefaultProfile(profile) -> restClient.installPlugin(profile, identifier, fromCatalog, force)
+            else -> {
+                _statusBanner.value = "Conecta el WebSocket del Gateway para instalar plugins en @$profile"
+                return
+            }
+        }
+        if (resp == null) {
+            _statusBanner.value = "No se pudo instalar '$identifier'"
+            return
+        }
+        val scanArr = resp["scan_findings"] as? JsonArray
         if (!scanArr.isNullOrEmpty()) {
             _statusBanner.value = "Escáner de seguridad revisó '$identifier' (${scanArr.size} hallazgos)"
         } else {
@@ -369,18 +398,165 @@ class HermesOsRepository(
         refreshPluginStore(profile)
     }
 
+    suspend fun toggleStorePlugin(profile: String, plugin: PluginCatalogItemUi, enable: Boolean) {
+        val ok = when {
+            rpcClient.connected.value -> rpcClient.toggleManagedPlugin(profile, plugin.pluginKey, enable)
+            isDefaultProfile(profile) -> restClient.setPluginEnabled(profile, plugin.pluginKey, enable)
+            else -> {
+                _statusBanner.value = "Conecta el WebSocket del Gateway para alternar plugins en @$profile"
+                return
+            }
+        }
+        if (ok) {
+            refreshPluginStore(profile)
+            _statusBanner.value = "Plugin '${plugin.name}' ${if (enable) "activado" else "desactivado"} (@$profile)"
+        }
+    }
+
     suspend fun toggleStorePlugin(profile: String, name: String, enable: Boolean) {
-        if (restClient.setPluginEnabled(profile, name, enable)) {
+        val match = _pluginStore.value.firstOrNull {
+            it.name == name || it.pluginKey == name || it.installedName == name
+        }
+        if (match != null) {
+            toggleStorePlugin(profile, match, enable)
+        } else if (rpcClient.connected.value) {
+            if (rpcClient.toggleManagedPlugin(profile, name, enable)) {
+                refreshPluginStore(profile)
+                _statusBanner.value = "Plugin '$name' ${if (enable) "activado" else "desactivado"}"
+            }
+        } else if (isDefaultProfile(profile) && restClient.setPluginEnabled(profile, name, enable)) {
             refreshPluginStore(profile)
             _statusBanner.value = "Plugin '$name' ${if (enable) "activado" else "desactivado"}"
         }
     }
 
+    suspend fun uninstallStorePlugin(profile: String, plugin: PluginCatalogItemUi) {
+        if (!plugin.canRemove) {
+            _statusBanner.value = "'${plugin.name}' es un plugin integrado y no puede desinstalarse"
+            return
+        }
+        val ok = when {
+            rpcClient.connected.value -> rpcClient.removeManagedPlugin(profile, plugin.installedName)
+            isDefaultProfile(profile) -> restClient.removePlugin(profile, plugin.installedName)
+            else -> {
+                _statusBanner.value = "Conecta el WebSocket del Gateway para desinstalar plugins en @$profile"
+                return
+            }
+        }
+        if (ok) {
+            refreshPluginStore(profile)
+            _statusBanner.value = "Plugin '${plugin.name}' desinstalado"
+        }
+    }
+
     suspend fun uninstallStorePlugin(profile: String, name: String) {
-        if (restClient.removePlugin(profile, name)) {
+        val match = _pluginStore.value.firstOrNull {
+            it.name == name || it.installedName == name || it.pluginKey == name
+        }
+        if (match != null) {
+            uninstallStorePlugin(profile, match)
+        } else if (rpcClient.connected.value) {
+            if (rpcClient.removeManagedPlugin(profile, name)) {
+                refreshPluginStore(profile)
+                _statusBanner.value = "Plugin '$name' desinstalado"
+            }
+        } else if (isDefaultProfile(profile) && restClient.removePlugin(profile, name)) {
             refreshPluginStore(profile)
             _statusBanner.value = "Plugin '$name' desinstalado"
         }
+    }
+
+    suspend fun updateStorePlugin(
+        profile: String,
+        plugin: PluginCatalogItemUi,
+        acceptCapabilities: Boolean = false,
+        force: Boolean = false
+    ): PluginUpdateOutcome {
+        val outcome = when {
+            rpcClient.connected.value -> rpcClient.updateManagedPlugin(
+                profile = profile,
+                installedName = plugin.installedName,
+                acceptCapabilities = acceptCapabilities,
+                force = force
+            )
+            isDefaultProfile(profile) -> restClient.updatePlugin(
+                profile = profile,
+                installedName = plugin.installedName,
+                acceptCapabilities = acceptCapabilities,
+                force = force
+            )
+            else -> PluginUpdateOutcome.Failed(
+                "Conecta el WebSocket del Gateway para actualizar plugins del perfil @$profile"
+            )
+        }
+        when (outcome) {
+            is PluginUpdateOutcome.Applied -> {
+                refreshPluginStore(profile)
+                val suffix = when {
+                    outcome.unchanged -> "ya estaba al día"
+                    outcome.sha.isNotBlank() -> "actualizado a #${outcome.sha.take(7)}"
+                    else -> "actualizado"
+                }
+                _statusBanner.value = "Plugin '${plugin.name}' $suffix"
+            }
+            is PluginUpdateOutcome.Failed -> {
+                _statusBanner.value = outcome.message
+            }
+            is PluginUpdateOutcome.ConsentRequired,
+            is PluginUpdateOutcome.ScanBlocked -> Unit
+        }
+        return outcome
+    }
+
+    suspend fun savePluginConfiguration(
+        profile: String,
+        plugin: PluginCatalogItemUi,
+        drafts: Map<String, String>
+    ): Result<List<String>> {
+        val plan = PluginSettingsCodec.buildPayloads(plugin.settingsSchema, drafts)
+            .getOrElse { return Result.failure(it) }
+
+        val savedKeys = mutableListOf<String>()
+
+        if (plan.secretEnvUpdates.isNotEmpty()) {
+            val envRes = restClient.updateEnvVarsDetailed(profile, plan.secretEnvUpdates)
+            savedKeys += envRes.updatedKeys
+            if (envRes.failedKeys.isNotEmpty()) {
+                return Result.failure(
+                    IllegalStateException(
+                        "No se pudieron guardar las variables secretas: ${envRes.failedKeys.joinToString(", ")}"
+                    )
+                )
+            }
+        }
+
+        if (plan.configValues.isNotEmpty()) {
+            if (!rpcClient.connected.value) {
+                return Result.failure(
+                    IllegalStateException(
+                        "WebSocket del Gateway desconectado. Reconecta en Nodo para guardar ajustes de '${plugin.name}'."
+                    )
+                )
+            }
+            val written = rpcClient.savePluginSettings(
+                profile = profile,
+                pluginKey = plugin.pluginKey,
+                values = plan.configValues
+            ).getOrElse { return Result.failure(it) }
+            savedKeys += written
+        }
+
+        refreshPluginStore(profile)
+        if (plan.secretEnvUpdates.isNotEmpty()) {
+            refreshProvidersAndConfig(profile)
+        }
+        _statusBanner.value = "Configuración de '${plugin.name}' guardada (${savedKeys.size} ajustes)"
+        return Result.success(savedKeys)
+    }
+
+    private fun isDefaultProfile(profile: String): Boolean {
+        val clean = profile.trim()
+        return clean.isEmpty() || clean.equals("default", ignoreCase = true)
     }
 
     fun clearBanner() {
@@ -525,6 +701,71 @@ class HermesOsRepository(
                 )
             }
             map + (scopeId to list)
+        }
+    }
+
+    companion object {
+        internal fun mergePluginCatalogWithRpc(
+            restItems: List<PluginCatalogItemUi>,
+            rpcItems: List<ManagedPluginRpcInfo>
+        ): List<PluginCatalogItemUi> {
+            if (rpcItems.isEmpty()) return restItems
+
+            val byCatalog = rpcItems.associateBy { it.catalogName }
+            val byName = rpcItems.associateBy { it.name }
+            val byKey = rpcItems.associateBy { it.key }
+            val matchedKeys = mutableSetOf<String>()
+
+            val merged = restItems.map { item ->
+                val rpc = byCatalog[item.catalogName]
+                    ?: byName[item.installedName]
+                    ?: byName[item.name]
+                    ?: byKey[item.pluginKey]
+                if (rpc != null) {
+                    matchedKeys += rpc.key
+                    val isEnabled = rpc.status == "enabled" || rpc.status == "active"
+                    item.copy(
+                        installed = true,
+                        enabled = isEnabled,
+                        installedName = rpc.name,
+                        pluginKey = rpc.key,
+                        catalogName = rpc.catalogName.ifBlank { item.catalogName },
+                        shaShort = rpc.installedSha.take(7).ifBlank { item.shaShort },
+                        updateAvailable = rpc.updateAvailable || item.updateAvailable,
+                        canRemove = rpc.canRemove && item.canRemove,
+                        canUpdate = rpc.canRemove && (rpc.canUpdate || item.canUpdate),
+                        settingsSchema = rpc.settingsSchema.ifEmpty { item.settingsSchema }
+                    )
+                } else {
+                    item
+                }
+            }.toMutableList()
+
+            for (rpc in rpcItems) {
+                if (rpc.key in matchedKeys) continue
+                val isEnabled = rpc.status == "enabled" || rpc.status == "active"
+                val isBundled = !rpc.canRemove
+                merged += PluginCatalogItemUi(
+                    name = rpc.name,
+                    description = rpc.description,
+                    repo = rpc.source,
+                    shaShort = rpc.installedSha.take(7),
+                    tier = rpc.catalogTier.ifBlank { if (isBundled) "official" else "local" },
+                    installed = true,
+                    enabled = isEnabled,
+                    updateAvailable = rpc.updateAvailable,
+                    catalogName = rpc.catalogName.ifBlank { rpc.name },
+                    installedName = rpc.name,
+                    pluginKey = rpc.key,
+                    canRemove = rpc.canRemove,
+                    canUpdate = rpc.canUpdate,
+                    settingsSchema = rpc.settingsSchema
+                )
+            }
+
+            return merged.sortedWith(
+                compareByDescending<PluginCatalogItemUi> { it.installed }.thenBy { it.name }
+            )
         }
     }
 }

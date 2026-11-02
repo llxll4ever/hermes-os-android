@@ -263,13 +263,23 @@ data class McpServerEntry(
 )
 
 @Serializable
+data class McpRequiredEnvUi(
+    val env: String,
+    val label: String = env,
+    val required: Boolean = true,
+    val isSet: Boolean = false
+)
+
+@Serializable
 data class McpCatalogEntry(
     val name: String,
     val title: String,
     val description: String,
     val transport: McpTransport = McpTransport.HTTP,
     val requiresOauth: Boolean = false,
-    val installed: Boolean = false
+    val installed: Boolean = false,
+    val needsInstall: Boolean = false,
+    val requiredEnv: List<McpRequiredEnvUi> = emptyList()
 )
 
 @Serializable
@@ -280,6 +290,7 @@ data class PluginSettingFieldUi(
     val description: String = "",
     val required: Boolean = false,
     val currentValue: String = "",
+    val defaultValue: String = "",
     val choices: List<String> = emptyList(),
     val envKey: String? = null,
     val hasSecretValue: Boolean = false
@@ -300,16 +311,46 @@ data class PluginCatalogItemUi(
     val description: String,
     val repo: String = "",
     val shaShort: String = "",
-    val tier: String = "community", // official | verified | community
+    val tier: String = "community", // official | verified | community | local
     val maintainer: String = "",
     val capabilitySummary: String = "",
     val installed: Boolean = false,
     val enabled: Boolean = false,
     val updateAvailable: Boolean = false,
+    val catalogName: String = name,
+    val installedName: String = name,
+    val pluginKey: String = name,
+    val canRemove: Boolean = true,
+    val canUpdate: Boolean = false,
     val settingsSchema: List<PluginSettingFieldUi> = emptyList(),
     val scanFindings: List<PluginScanIssueUi> = emptyList(),
     val pendingConsentDelta: List<String> = emptyList()
 )
+
+sealed interface PluginUpdateOutcome {
+    data class Applied(
+        val sha: String = "",
+        val unchanged: Boolean = false,
+        val restartRequired: Boolean = false
+    ) : PluginUpdateOutcome
+
+    data class ConsentRequired(
+        val pluginName: String,
+        val sha: String = "",
+        val deltaLines: List<String>
+    ) : PluginUpdateOutcome
+
+    data class ScanBlocked(
+        val pluginName: String,
+        val verdict: String,
+        val findings: List<PluginScanIssueUi>,
+        val canForce: Boolean
+    ) : PluginUpdateOutcome
+
+    data class Failed(
+        val message: String
+    ) : PluginUpdateOutcome
+}
 
 // ── 6. Desktop Mode Workspace Canvas & Widgets ────────────────────────────────
 

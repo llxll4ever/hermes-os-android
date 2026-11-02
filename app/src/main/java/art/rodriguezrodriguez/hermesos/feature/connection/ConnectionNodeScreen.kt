@@ -21,6 +21,7 @@ import art.rodriguezrodriguez.hermesos.core.model.ConnectionKind
 import art.rodriguezrodriguez.hermesos.core.model.ConnectionRung
 import art.rodriguezrodriguez.hermesos.core.model.LinkStatus
 import art.rodriguezrodriguez.hermesos.core.model.defaultConnectionRungs
+import art.rodriguezrodriguez.hermesos.core.network.CredentialGuards
 import art.rodriguezrodriguez.hermesos.feature.desktop.HermesOsViewModel
 import art.rodriguezrodriguez.hermesos.ui.theme.*
 import kotlinx.coroutines.launch
@@ -353,40 +354,51 @@ fun ConnectionNodeScreen(vm: HermesOsViewModel) {
             }
         }
 
-        // 4. Optional Loopback Session Token (`X-Hermes-Session-Token`)
+        // 4. Loopback Session Token / Dashboard Launch URL (`X-Hermes-Session-Token` & `?token=...`)
+        val isLoopbackTokenNeeded = !connection.authRequired && connection.status == LinkStatus.AUTH_REQUIRED
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = HermesSurfaceCard,
-            border = BorderStroke(1.dp, HermesBorderSubtle)
+            border = BorderStroke(1.dp, if (isLoopbackTokenNeeded) HermesAmber else HermesBorderSubtle)
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Token Directo Loopback (Opcional)",
+                    text = "Token Directo Loopback / URL de Lanzamiento",
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
-                    color = HermesTextPrimary
+                    color = if (isLoopbackTokenNeeded) HermesAmber else HermesTextPrimary
+                )
+                Text(
+                    text = if (isLoopbackTokenNeeded) {
+                        "Este nodo opera en modo loopback (auth_required=false). Pega el token o la URL completa http://127.0.0.1:9119/?token=... impresa por `hermes dashboard`."
+                    } else {
+                        "Acepta el token puro o la URL completa ?token=... para túneles ADB/SSH/Tailscale directos a 127.0.0.1:9119."
+                    },
+                    fontSize = 11.sp,
+                    color = if (isLoopbackTokenNeeded) HermesAmber else HermesTextSecondary
                 )
                 OutlinedTextField(
                     value = sessionTokenDraft,
                     onValueChange = { sessionTokenDraft = it },
-                    label = { Text("X-Hermes-Session-Token (si usas túnel ADB/SSH a 127.0.0.1:9119)") },
+                    label = { Text("X-Hermes-Session-Token o URL http://.../?token=...") },
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 FilledTonalButton(
                     onClick = {
-                        val clean = sessionTokenDraft.trim().takeIf { it.isNotBlank() }
+                        val clean = CredentialGuards.extractTokenFromUrlOrRaw(sessionTokenDraft)
+                        sessionTokenDraft = clean.orEmpty()
                         vm.repo.restClient.loopbackSessionToken = clean
                         vm.repo.restClient.cookieStore.saveBearerOrSessionToken("loopback_session_token", clean)
                         scope.launch { vm.repo.connectUsingLadder() }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Aplicar Token y Reconectar")
+                    Text("Guardar Token de Sesión y Reconectar")
                 }
             }
         }

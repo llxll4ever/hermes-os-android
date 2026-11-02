@@ -28,10 +28,27 @@ data class ServerRpcRequest(
     val params: JsonObject
 )
 
+data class ManagedPluginRpcInfo(
+    val name: String,
+    val key: String,
+    val catalogName: String,
+    val description: String,
+    val source: String,
+    val status: String,
+    val installedSha: String,
+    val catalogTier: String,
+    val updateAvailable: Boolean,
+    val canRemove: Boolean,
+    val canUpdate: Boolean,
+    val settingsSchema: List<PluginSettingFieldUi>
+)
+
 /**
  * Multiplexed JSON-RPC 2.0 Client over `WS /api/ws` (`tui_gateway` host-scoped socket).
  *
- * - Mints a fresh single-use WS ticket (`POST /api/auth/ws-ticket`) on every connect/reconnect.
+ * - Mints a fresh single-use WS ticket (`POST /api/auth/ws-ticket`) on every connect/reconnect
+ *   when `authRequired == true`, or attaches `?token=<sessionToken>` when `authRequired == false`
+ *   (loopback mode, `_ws_auth_reason` in `web_server_dashboard.py:224-273`).
  * - Multiplexes concurrent RPC calls (`session.create`, `prompt.submit`, `groups.*`, `plugins.manage`, `reload.mcp`).
  * - Streams real-time bot & room events (`tool.start`, `tool.complete`, `message.delta`, `reasoning.delta`,
  *   `on_room_member_activity`) to drive the Live Bot Wall and Team War Room widgets.
@@ -59,7 +76,14 @@ class HermesRpcClient(
     suspend fun connect(authRequired: Boolean = true): Boolean = withContext(Dispatchers.IO) {
         disconnect()
         val ticket = if (authRequired) restClient.mintWsTicket() else null
-        val wsUrl = CredentialGuards.buildGatewayWebSocketUrl(restClient.activeBaseUrl, "/api/ws")
+        val wsUrl = CredentialGuards.buildAuthenticatedWsUrl(
+            baseUrl = restClient.activeBaseUrl,
+            path = "/api/ws",
+            authRequired = authRequired,
+            ticket = ticket,
+            includeTicketQuery = false,
+            sessionToken = restClient.loopbackSessionToken
+        )
         val subprotocols = CredentialGuards.buildTicketSubprotocols(ticket)
 
         val reqBuilder = Request.Builder()
@@ -67,8 +91,11 @@ class HermesRpcClient(
             .header("Sec-WebSocket-Protocol", subprotocols.joinToString(", "))
             .header("Origin", CredentialGuards.normalizeBaseUrl(restClient.activeBaseUrl))
 
-        restClient.loopbackSessionToken?.takeIf { it.isNotBlank() }?.let {
+        CredentialGuards.extractTokenFromUrlOrRaw(restClient.loopbackSessionToken)?.let {
             reqBuilder.header("X-Hermes-Session-Token", it)
+        }
+        restClient.bearerAccessToken?.takeIf { it.isNotBlank() }?.let {
+            reqBuilder.header("Authorization", "Bearer ${it.trim()}")
         }
 
         val readySignal = CompletableDeferred<Boolean>()
@@ -287,25 +314,136 @@ class HermesRpcClient(
         return runCatching { call("reload.mcp", params); true }.getOrDefault(false)
     }
 
-    suspend fun savePluginSettings(profile: String, pluginKey: String, values: Map<String, String>): Boolean {
+    // ── Profile-Scoped Plugin Management (`plugins.manage` over `WS /api/ws`) ─
+
+    suspend fun listManagedPlugins(profile: String): List<ManagedPluginRpcInfo> {
         val params = buildJsonObject {
-            put("profile", profile)
-            put("action", "settings")
-            put("key", pluginKey)
-            putJsonObject("values") {
-                values.forEach { (k, v) -> put(k, v) }
-            }
+            put("profile", profile.trim().ifBlank { "default" })
+            put("action", "list")
         }
-        val res = runCatching { call("plugins.manage", params) as? JsonObject }.getOrNull()
-        return res?.bool("ok") ?: false
+        val res = call("plugins.manage", params) as? JsonObject ?: return emptyList()
+        val arr = res["plugins"] as? JsonArray ?: return emptyList()
+        return arr.mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            val name = o.str("name").ifBlank { return@mapNotNull null }
+            val key = o.str("key").ifBlank { name }
+            val catName = o.str("catalog_name").ifBlank { name }
+            val source = o.str("source")
+            val isBundled = source.equals("bundled", ignoreCase = true)
+            val updateAvail = o.bool("update_available")
+            ManagedPluginRpcInfo(
+                name = name,
+                key = key,
+                catalogName = catName,
+                description = o.str("description"),
+                source = source,
+                status = o.str("status"),
+                installedSha = o.str("installed_sha"),
+                catalogTier = o.str("catalog_tier"),
+                updateAvailable = updateAvail,
+                canRemove = !isBundled,
+                canUpdate = !isBundled && (updateAvail || o.str("catalog_name").isNotBlank() || source.isNotBlank()),
+                settingsSchema = HermesRestClient.parsePluginSettingsSchema(o["settings_schema"] as? JsonArray)
+            )
+        }
+    }
+
+    suspend fun savePluginSettings(
+        profile: String,
+        pluginKey: String,
+        values: JsonObject
+    ): Result<List<String>> = runCatching {
+        val params = buildJsonObject {
+            put("profile", profile.trim().ifBlank { "default" })
+            put("action", "settings")
+            put("key", pluginKey.trim())
+            put("values", values)
+        }
+        val res = call("plugins.manage", params) as? JsonObject
+            ?: error("Respuesta vacía de plugins.manage (settings)")
+        if (!res.bool("ok")) {
+            error(res.str("error").ifBlank { "No se pudieron guardar los ajustes de '$pluginKey'" })
+        }
+        val writtenArr = (res["written"] as? JsonArray) ?: (res["saved_keys"] as? JsonArray)
+        writtenArr?.mapNotNull {
+            if (it is JsonPrimitive && it !is JsonNull) it.content else null
+        }.orEmpty()
+    }
+
+    suspend fun toggleManagedPlugin(profile: String, pluginKey: String, enable: Boolean): Boolean {
+        val params = buildJsonObject {
+            put("profile", profile.trim().ifBlank { "default" })
+            put("action", "toggle")
+            put("key", pluginKey.trim())
+            put("enable", enable)
+        }
+        return runCatching {
+            val res = call("plugins.manage", params) as? JsonObject
+            res?.bool("ok") == true
+        }.getOrDefault(false)
+    }
+
+    suspend fun installManagedPlugin(
+        profile: String,
+        identifierOrCatalogName: String,
+        fromCatalog: Boolean,
+        force: Boolean = false
+    ): JsonObject? {
+        val clean = identifierOrCatalogName.trim()
+        val params = buildJsonObject {
+            put("profile", profile.trim().ifBlank { "default" })
+            put("action", "install")
+            if (fromCatalog) {
+                put("catalog_name", clean)
+            } else {
+                put("identifier", clean)
+            }
+            put("enable", true)
+            if (force) put("force", true)
+        }
+        return runCatching { call("plugins.manage", params) as? JsonObject }.getOrNull()
+    }
+
+    suspend fun removeManagedPlugin(profile: String, installedName: String): Boolean {
+        val params = buildJsonObject {
+            put("profile", profile.trim().ifBlank { "default" })
+            put("action", "remove")
+            put("name", installedName.trim())
+        }
+        return runCatching {
+            val res = call("plugins.manage", params) as? JsonObject
+            res?.bool("ok") == true
+        }.getOrDefault(false)
+    }
+
+    suspend fun updateManagedPlugin(
+        profile: String,
+        installedName: String,
+        acceptCapabilities: Boolean = false,
+        force: Boolean = false
+    ): PluginUpdateOutcome {
+        val cleanName = installedName.trim()
+        val params = buildJsonObject {
+            put("profile", profile.trim().ifBlank { "default" })
+            put("action", "update")
+            put("name", cleanName)
+            put("accept_capabilities", acceptCapabilities)
+            put("force", force)
+        }
+        return runCatching {
+            val res = call("plugins.manage", params, timeoutMs = 60_000L) as? JsonObject
+            HermesRestClient.parsePluginUpdateOutcome(cleanName, res)
+        }.getOrElse { e ->
+            PluginUpdateOutcome.Failed(e.message ?: "Error RPC actualizando '$cleanName'")
+        }
     }
 
     // ── Internal Frame Dispatcher ─────────────────────────────────────────────
 
     internal fun handleIncomingFrame(rawText: String) {
         val obj = runCatching { json.parseToJsonElement(rawText) as? JsonObject }.getOrNull() ?: return
-        val id = (obj["id"] as? JsonPrimitive)?.content
-        val method = (obj["method"] as? JsonPrimitive)?.content
+        val id = (obj["id"] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content
+        val method = (obj["method"] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content
 
         // 1. Response to an outgoing client RPC call
         if (id != null && method == null) {
