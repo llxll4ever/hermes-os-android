@@ -30,11 +30,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android API 35
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Install Android API 35 with preinstalled SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
 
       - name: Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
