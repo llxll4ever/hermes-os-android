@@ -1,0 +1,53 @@
+name: Gemini Nano 4 Lab · Build APK
+
+on:
+  push:
+    branches:
+      - feature/gemini-nano4-local-probe
+    paths:
+      - 'nano-probe/**'
+      - '.github/workflows/gemini-nano4-lab.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'nano-probe/**'
+      - '.github/workflows/gemini-nano4-lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-nano-lab:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 35
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Assemble standalone Nano Lab
+        run: gradle -p nano-probe :app:assembleDebug --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-nano4-lab-debug-apk
+          path: nano-probe/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
